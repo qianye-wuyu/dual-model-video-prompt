@@ -1,0 +1,352 @@
+---
+name: dual-model-video-prompt
+description: 通用 AI 视频提示词引擎，同时覆盖 Seedance 2.5 与 MiniMax H3 两个模型。用于把创作意图转化为可执行的结构化提示词，包含模型选择决策、统一写作框架、去 AI 感微表情/运动技法、跨模型一致性策略与可直接套用的模板库。当用户需要为 Seedance 或 H3 写视频提示词、制作 AI 短片（尤其是毕业设计级长片）、或需要一套不依赖单一模型的通用视频生成提示词方法论时使用。
+version: 1.0.0
+agent_created: true
+---
+
+# 双模型通用视频提示词引擎（Seedance 2.5 × MiniMax H3）
+
+> **核心定位**：一套「模型无关」的创作方法论 + 两套「模型专属」的编译规则。
+> 你先用统一框架把想法写成**导演级执行 brief**，再按目标模型编译成 Seedance 或 H3 的格式。
+> 毕设实战结论：两个模型各有所长，**同时用**比只用某一个更强——H3 负责带原生音频/对话/≤15s 的视听镜头，Seedance 负责长稳态叙事/≤60s 2K 的纯视觉镜头，后期缝合。
+
+---
+
+## 一、双模型能力矩阵（先懂差异，才不会写错格式）
+
+| 维度 | Seedance 2.5 | MiniMax H3 |
+|------|--------------|------------|
+| **输出时长** | 单次最稳约 60s 2K（标准模式），超长需分段 | 4–15s，2K 需经 H3-Regenerate-2K 升频 |
+| **原生音频** | 弱（主要靠 @音频 做动作对齐，非原生音轨） | **强**：原生立体声 32kHz，对话/环境声/配乐可内生 |
+| **参考绑定语法** | `@图片1 作为主角 / 风格参考 / 运镜参考` | 结构化标签 `<Subject N>` `<Picture N>` `<Video N>` `<Audio N>` |
+| **多模态输入** | 图/视频/音频参考，数量中等 | Ref2VA 最多 9 图 + 3 视频 + 3 音频（总 ≤12） |
+| **提示词形态** | 散文式「摄影指令」+ 四层结构 | 结构化控制文档（字段名固定，顺序固定） |
+| **镜头/剪切** | 单镜头内运镜为主，复杂转场靠后期 | 原生支持多镜头剪切（`the camera cuts to` + 时间戳） |
+| **对话/口型** | 唇形同步中文约 92.4%，复杂对话建议后期配音 | 11 种语言稳定，对话原生生成，口型随生成 |
+| **运动约束** | 明确黄金规则：慢速/匀速/≤2 种运动叠加 | 运镜三维度：类型+幅度+速度，单镜头插值更稳 |
+| **最长板** | 长镜头稳定性、电影质感、大场景 | 音画同步、对话表演、参考保真、多镜头剪辑 |
+| **最短板** | 原生音频弱、复杂转场不支持 | 单条时长短（15s 封顶）、2K 需两步 |
+
+**关键认知**：两者都把「抽象形容词」视为低质量指令。差异只在**表达方式**——Seedance 要你写「可执行的摄影指令」，H3 要你写「带字段名的结构化时间线」。统一框架解决「写什么」，模型规则解决「怎么排」。
+
+---
+
+## 二、统一写作框架（Unified Brief）
+
+无论目标模型，先按以下顺序产出 brief。这就是两种格式的共同骨架。
+
+### U1. 叙事目标（必须第一句写清）
+> 「这个镜头要完成什么叙事任务？观众看完应感受到什么？」
+- 例：「15 秒一镜到底，横向跟随逃亡女主，用镜头惯性制造压迫感，结尾她回头决意放弃。」
+
+### U2. 技术地基（L1）
+画幅、帧率、质感、分辨率预期。
+- Seedance：`2.35:1 宽银幕，24fps，ARRI Alexa 质感，轻微暗角`
+- H3：`Live-action, cinematic` + 像素/比例在生成参数里设
+
+### U3. 空间舞台（L2）
+分层：前景 / 主体层 / 中景 / 后景。明确主体占比与空间锚点（左墙右园等），保证镜头移动有依据。
+
+### U4. 光影与色调（L3）
+光源方向、性质、色温、阴影方向。**必须恒定**，否则长镜头/多镜头会漂移。
+- 例：`右侧 45° 暖光 5600K（伦勃朗光），左侧阴影偏冷蓝，光源方向全程不变`
+
+### U5. 运动与焦点（L4）
+- 运镜：类型 + 幅度 + 速度（两模型通用描述法）
+- 焦点叙事：焦点漂移/回收引导注意力（H3 原生支持多镜头，Seedance 单镜内可用微焦变化）
+- 物理因果：运镜必须符合惯性，避免瞬移
+
+### U6. 表演细节（去 AI 感核心）
+把「情绪」拆成三层，禁止直接写情绪形容词：
+1. **外部动作**：可观察结果（转身、握拳、低头）
+2. **生理反应**：不可控真相（瞳孔收缩、喉结滚动、下眼睑微红）
+3. **量化指标**：幅度/速度/时长/时间戳
+- 例：「眉心聚拢约 2mm，单侧嘴角下沉 0.5°，下唇以 <1mm 振幅颤抖 1.5s 后放松」
+- **非对称**：只让半边脸动，明确「眼部不参与」
+- **克制与中断**：写「涌到嘴边的话被咽回」「摇头到第 10° 突然减速停止」
+
+### U7. 声音空间（H3 强项 / Seedance 用 @音频）
+- 环境声、动作声、非语言人声 → `overall_soundscape`
+- 仅观众可闻的配乐 → `non_diegetic_music`
+- 声音随镜头空间变化：镜头转向谁，谁的声音占中心
+
+### U8. 负面约束（两模型都吃这一套）
+明确禁止项框定边界：
+`禁止切镜 / 禁止瞬移变焦 / 禁止表情对称 / 禁止人物滑行或肢体融合 / 禁止背景多余人物 / 禁止文字乱码`
+
+### U9. 留白与节拍
+- 文戏按 3 秒左右一个情绪节拍：`起始状态 → 触发事件 → 反应动作 → 新状态`
+- 故意留 1–2 个「什么都没发生」的克制时刻放大张力
+
+---
+
+## 三、模型选择决策树
+
+```
+需要原生对话 / 环境音 / 配乐内生？
+├─ 是 → 时长 ≤15s？ → 是 → H3（T2VA / I2VA / Ref2VA）
+│            └─ 否 → 仍用 H3 但分段生成，后期缝合
+└─ 否 → 需要长稳态单镜（≤60s）或纯视觉电影感？
+        ├─ 是 → Seedance 2.5（四层结构 + @主角）
+        └─ 否 → 两者皆可：
+                • 重参考保真/多镜头剪辑 → H3
+                • 重运动稳定/大场景 → Seedance
+```
+
+**毕设 20 分钟长片分工建议**
+1. 先把剧本拆成「镜头表」（shot list），每镜标注：时长、是否含对话/音频、是否需参考角色。
+2. 含对话/音频、≤15s 的镜头 → H3（Ref2VA 锁角色+音频）。
+3. 长稳态、纯视觉、需电影质感的镜头 → Seedance 2.5。
+4. 建立**统一参考板**（角色设定图、风格帧、色调卡），两个模型共用，保证跨模型人物一致。
+5. 后期用 Remotion/剪映缝合，转场与字幕在后期做。
+
+---
+
+## 四、Seedance 2.5 编译规则（专属）
+
+### 4.1 四层结构顺序
+`[L1 技术] + [L2 空间] + [L3 光影] + [主体动作] + [L4 运动] + [风格] + [情绪]`
+优先级 L1>L2>L3>L4，预算有限时按序取舍。
+
+### 4.2 @ 语法绑定
+- `@图片1 作为主角` —— 人物一致性最高优先级
+- `@图片1 作为风格参考` —— 锁色调光影
+- `@视频1 的运镜方式` —— 复刻镜头运动
+- `@音频1 中 X 秒处的鼓点` —— 动作与音乐对齐
+
+### 4.3 运动黄金规则
+| 运动 | 写法 | 成功率 |
+|------|------|--------|
+| 推拉 | 缓慢推进，8 秒内完成 | ⭐⭐⭐⭐⭐ |
+| 摇移 | 缓慢左摇 15 度 | ⭐⭐⭐⭐ |
+| 主体位移 | 从 A 走向 B，匀速 | ⭐⭐⭐ |
+| 多动叠加 | 边走边挥手边转身 | ⭐⭐ 低 |
+| 快速运动 | 百米冲刺 | ⭐⭐ 低 |
+
+**铁律**：单次 ≤2 种运动叠加；速度用「缓慢/匀速」比精确度数更稳。
+
+### 4.4 反模式（绝对禁止）
+抽象形容词堆砌 / 冲突指令 / 长难句 / 忽略物理 / 多风格混用 / 超长运动链。
+
+### 4.5 诚实边界
+- 人物特写 >3s 易变形 → 分段或固定镜头
+- 多人物 >3 人易混淆 → 减人或明确站位
+- 复杂流体/精确运镜/文字生成 → 后期合成
+- 可用率约 90%，预留 10% 重生成
+
+---
+
+## 五、MiniMax H3 编译规则（专属）
+
+### 5.1 输入模式选择
+| 模式 | 含义 | 参考素材 |
+|------|------|----------|
+| T2VA | 纯文本生音视频 | 无 |
+| I2VA | 首帧图生视频 | 首帧图 |
+| FL2VA | 首尾帧之间插值 | 首帧 + 末帧 |
+| L2VA | 收敛到末帧 | 末帧 |
+| Ref2VA | 全参考（图/视频/音频） | ≤9 图 + ≤3 视频 + ≤3 音频 |
+
+### 5.2 基础模式字段结构（顺序固定）
+```
+[首帧对齐指令（I2VA/FL2VA/L2VA 必须，第一行）]
+
+integrated_multimodal_description: [Shot 1] 风格, 构图, 主体, 动作, 镜头, 说话者, 对话, 场景声...
+[Shot 2] At 00:03.500, the camera cuts to...
+
+overall_soundscape: 1–4 句环境/动作/非语言人声（全静音写 N/A）
+
+non_diegetic_music: 1–3 句配乐（无写 N/A）
+```
+
+### 5.3 全参考模式六段式（Ref2VA）
+```
+subject_definitions:      # <Subject N>/<Picture N>/<Video N>/<Audio N> 定义
+summary:                  # [任务类型] 一句话概括
+retention_analysis:       # 每项参考 fully_preserved / partially_preserved / reference ...
+detailed_description:     # 按播放顺序逐镜头，插入参考标签
+overall_soundscape:       # 环境声（可引用 <Audio N>）
+non_diegetic_music:       # 配乐（可引用 <Audio N>）
+```
+
+### 5.4 通用书写规则（两模式共享）
+- 运镜三维度写入自然英文：`The camera pushes in with small amplitude at slow speed`
+- 说话人稳定 ID：`(S1)` `(S2)`，多人同说 `(S1,S2)`；首现建立音色/音高/语速
+- 对话/歌词用 `<d>[Language] 原文</d>`，逐字保留不译
+- 屏幕可见文字用双引号逐字保留
+- 跨剪切音频连续用 `<scenetrans>`，被截断用 `<cutoff>`
+- 参考标签一旦分配，全文档含义不变
+
+### 5.5 H3 专属反模式
+- 不要跳过字段名或打乱顺序
+- 不要在 `integrated_multimodal_description` 里写情节摘要，要写「可见可闻」的细节
+- 不要漏掉首帧对齐指令行（I2VA/FL2VA/L2VA）
+- 不要超过 15s 单条；长内容分段
+
+---
+
+## 六、去 AI 感技法库（两模型通用，来自实战拆解）
+
+### 6.1 微表情肌肉清单（替代情绪形容词）
+| 想表达 | 错误写法 | 正确写法 |
+|--------|----------|----------|
+| 伤心 | 她很伤心 | 眉心聚拢出两道浅竖纹，下唇 <1mm 振幅颤抖，眉心缓缓舒展 |
+| 决绝 | 眼神坚定 | 瞳孔轻微收缩，目光锐利，单侧嘴角下沉 0.5° 不扩散至眼底 |
+| 克制 | 强忍泪水 | 下眼睑微红湿润，泪液在边缘被锁住，喉结滚动一次 |
+
+### 6.2 量化生理指标
+把「微微/轻轻」转为数字：`振幅 <1mm` `时长 1.5s` `速度先快后慢，0.2s 卡顿` `内收 2–3cm`。
+
+### 6.3 非对称与冲突共存
+单帧内插入矛盾指令：`嘴角向左侧微扯出半弧苦笑，未扩散至面部其他区域，眼底仍是破碎的悲伤`。必须写明「同时发生」或「0.5 秒内转换」。
+
+### 6.4 克制与中断
+不写「流泪」，写「眼眶泛红但泪液在眼睑边缘被强行锁住」；不写「摇头否认」，写「摇头启动后在第 10° 突然减速停止」。
+
+### 6.5 运动镜头六要素
+叙事目标 → 空间舞台 → 物理运镜 → 焦点叙事 → 声音空间 → 负面约束。
+核心是「把抽象感觉变成具体物理过程」。
+
+### 6.6 长镜头三稳态
+人物身份稳定 + 色调关系稳定 + 情绪连续。用参考图锁人物，固定空间锚点（左 X 右 Y），固定光源方向。
+
+### 6.7 文戏层次与留白
+15s 分 5 个 3s 节拍，每节拍：`起始→触发→反应→新状态`；控制动作密度，用停顿放大张力。
+
+---
+
+## 七、可直接套用的模板
+
+### 模板 A：情绪特写（沉默告别，15s）
+
+**统一 Brief**
+叙事：15s 特写，女主完成无声告别，从冷静到决堤再到克制。
+技术：2.35:1 / 24fps / 浅景深 / 手持呼吸感。
+空间：面部占 80%，前景全虚化。
+光影：右侧 45° 暖光 5600K，左阴影冷蓝，方向不变。
+表演节拍：0-3s 冷静 → 3-6s 裂痕 → 6-9s 渗水 → 9-12s 决堤 → 12-15s 留白。
+负面：禁止切镜/对称/泪珠滑落/背景人物。
+
+**→ Seedance 编译**
+```
+[技术] 2.35:1 宽银幕，24fps，浅景深，手持呼吸感，35mm 胶片颗粒
+@参考图1 作为主角，保持面部与服装一致
+[空间] 极近景特写：面部占 80%；前景完全虚化；背景冷色光斑
+[光影] 右侧 45° 暖光 5600K 伦勃朗光，左侧阴影偏冷蓝，光源方向全程不变
+[运动] 固定手持+轻微浮动，焦点锁定左眼；无切镜
+[表演·0-3s] 冷静：眼睑低垂，呼吸均匀，肌肉放松
+[表演·3-6s] 裂痕：眉心聚拢约 2mm，单侧嘴角下沉 0.5°，眼部不参与
+[表演·6-9s] 渗水：下眼睑微红湿润，泪液被锁住，喉结滚动一次
+[表演·9-12s] 决堤：瞳孔轻微收缩，目光锐利，下唇颤抖 <1mm
+[表演·12-15s] 留白：动作停止，缓缓移开视线，呼吸放缓
+[情绪] 压抑、决绝、无声告别
+[负向] 禁止切镜，禁止表情对称，禁止泪珠滑落，禁止背景人物，禁止快速运动
+```
+
+**→ H3 编译（I2VA，首帧锁脸）**
+```
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+
+integrated_multimodal_description: [Shot 1] Live-action, cinematic, the young woman in <Picture 1> fills 80% of frame, foreground fully blurred, cold bokeh behind. Right 45° warm 5600K Rembrandt light, left shadow cool blue, light direction constant. 0-3s calm: eyelids lowered, even breath. 3-6s crack: brow furrows ~2mm, left corner of mouth drops 0.5°, eyes uninvolved. 6-9s seep: lower eyelid faintly red and moist, tear locked at lash line, Adam's apple rolls once. 9-12s breach: pupils slightly constrict, gaze sharpens, lower lip trembles <1mm. 12-15s restraint: motion stops, gaze drifts away, breath slows.
+
+overall_soundscape: Soft indoor room tone, a low breath intake at 6s, then silence.
+
+non_diegetic_music: Sparse piano notes at slow tempo, fading out by 15s.
+```
+
+### 模板 B：运动跟随（追逐，15s）
+
+**统一 Brief**
+叙事：横向跟随逃亡者，镜头因惯性短暂失焦后回收，制造压迫。
+空间：前景虚化路灯 / 中景逃亡者 / 后景建筑消失点。
+运镜：缓慢右移跟拍，单镜头，幅度中，速度匀。
+声音：转向追兵时其脚步占中心，回到女主时呼吸占中心。
+
+**→ Seedance**
+```
+[技术] 16:9，24fps，动态模糊优化，城市夜性质感
+[空间] 前景：虚化路灯杆占 15%；中景：逃亡女主全身；后景：建筑灯光消失点
+[光影] 顶光路灯，面部受光，背景压暗
+[运动] 镜头缓慢右移跟拍，中幅度匀速，无切镜；允许一次短暂失焦后回收
+[主体] 女主奔跑，动作流畅，避免摆动四肢
+[风格] 高对比，参照犯罪片调色
+[负向] 禁止瞬移，禁止人物滑行，禁止镜头剧烈抖动，禁止背景多余人物
+```
+
+**→ H3（T2VA）**
+```
+integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium tracking shot follows a fleeing woman from the side at slow speed with medium amplitude. Foreground: blurred streetlamp poles. Midground: the woman, full body. Background: building vanishing point with city lights. The camera briefly loses focus then re-acquires as if the operator hesitates, compressing space. When the pursuer appears, his footsteps dominate center; when frame returns to the woman, her breathing becomes the main audio.
+
+overall_soundscape: Steady running footsteps on wet pavement, distant city hum, a sharp intake of breath when the pursuer enters.
+
+non_diegetic_music: Tense low strings at moderate tempo, pulse accelerating slightly then settling.
+```
+
+### 模板 C：对话场景（带原生音频，H3 主用）
+
+**统一 Brief**
+叙事：咖啡馆，女主质问男主，带原生对话与环境声。
+参考：角色图锁脸 + 环境图锁场景（Ref2VA）。
+
+**→ H3（Ref2VA 六段式节选）**
+```
+subject_definitions:
+<Subject 1> is the young woman in <Picture 1>, long dark hair, blue cardigan.
+<Subject 2> is the young man in <Picture 2>, short brown hair, grey hoodie.
+<Subject 3> is the café environment in <Picture 3>, brick wall, wooden table, neon sign.
+
+summary: [reference generation] <Subject 1> confronts <Subject 2> in <Subject 3>.
+
+retention_analysis:
+<Subject 1>: fully_preserved - hair, cardigan retained.
+<Subject 2>: fully_preserved - hair, hoodie retained.
+<Subject 3>: fully_preserved - brick wall, table, neon retained.
+
+detailed_description:
+The target video is cinematic, warm indoor café style.
+[Shot 1] Medium shot of <Subject 3>. <Subject 1> (S1) says in a clear youthful voice, <d>[Chinese] 你昨天去哪了？</d> <Subject 2> (S2) lowers his gaze and replies, <d>[Chinese] 我说了在加班。</d>
+[Shot 2] At 00:04.000, close-up of <Subject 1> (S1), jaw tightens 1mm, says, <d>[Chinese] 别骗我。</d>
+
+overall_soundscape: Soft café room tone, cup set down at 4s.
+non_diegetic_music: N/A
+```
+（Seedance 无原生音频，同场景建议生成纯视觉后后期配音；用 @图片1 作为主角 + @图片3 作为风格参考）
+
+---
+
+## 八、生成前检查清单（通用）
+
+- [ ] 叙事目标是否一句话写清？
+- [ ] 目标模型是否按决策树选定？
+- [ ] 是否绑定参考图/视频/音频（人物一致性）？
+- [ ] 空间是否分前/中/后景？主体占比明确？
+- [ ] 光源方向、色温、阴影是否恒定？
+- [ ] 运动是否 ≤2 种？速度是否缓慢/匀速？
+- [ ] 情绪是否拆成肌肉+生理+数字，而非形容词？
+- [ ] 是否有非对称/冲突共存/克制中断细节？
+- [ ] 是否定义声音空间（H3 必填字段，Seedance 用 @音频）？
+- [ ] 是否有明确负面约束？
+- [ ] 是否留 1–2 个克制时刻（留白）？
+- [ ] 是否接受 10% 失败率并准备重生成/分段？
+
+---
+
+## 九、止损与边界（合并版）
+
+| 现象 | 优先动作 | 仍失败 |
+|------|----------|--------|
+| 人物换脸/不一致 | 加强参考绑定（@主角 / `<Subject>`） | 2-3 次后换参考图或首尾帧模式 |
+| 运镜混乱 | 简化到 1 种运动，或用参考视频运镜 | 固定镜头 + 主体微动作 |
+| 情绪像蜡像 | 加微动作 + 生理指标 | 换参考图 |
+| 音频不同步（H3） | 检查 `<Audio N>` 复用标记 | 改后期配音 |
+| 超 15s（H3）/ 超 60s（Seedance） | 分段生成 | 后期缝合 |
+| 文字乱码 | 加负向「无文字」 | 后期字幕合成 |
+
+---
+
+## 十、自我进化
+
+- 新模型能力更新（Seedance 2.5 实测上限、H3 新版本）时，刷新「能力矩阵」与「编译规则」。
+- 新实战技法（如更细的肌肉词典、镜头运动词典）追加到第六节。
+- 新模板追加到第七节，保持 Seedance / H3 双版本对照。
